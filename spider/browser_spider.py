@@ -9,6 +9,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 import codecs
 import datetime
 from hashlib import md5
+from spider.alchemy import Alchemy
 
 
 # 可选择列表页面的翻页方式，直接地址翻页或点击翻页.可选多次滚动，还是一次滚动,或者不用滚动。url_log可以加个网站参数提升性能
@@ -83,6 +84,8 @@ class Spider(object):
         else:
             filename = codecs.open("./result/"+output_name, "a", "utf-8")
         content = json.dumps(data, ensure_ascii=False) + "\n"
+        if not self.operate_params == {}:
+            self.master_data(str(data))
         filename.write(content)
 
     # 选择提取内容方式
@@ -276,8 +279,14 @@ class Spider(object):
         self.output_data(self.result_dict)
 
     # 提纯、精炼、转换数据格式等操作,待开发，提纯：如将某一标签(数据)替换换中文或数字等
-    def master_data(self):
-        pass
+    def master_data(self, data):
+        purify = self.operate_params["purify"]
+        refine = self.operate_params["refine"]
+        if purify or refine:
+            result = Alchemy.inferno(data, purify, refine)
+            print(result)
+        # reconstruct = self.operate_params["reconstruct"]
+
 
     # 关闭当前窗口或返回
     def close_or_back(self, windows):
@@ -323,7 +332,7 @@ class Spider(object):
         self.output_way = self.load_dict["output_way"]
         if self.dedup_way == "1":
             try:
-                self.dedup_set = set(re.sub(r"[{}\"\'\s]","",codecs.open("./log/url_log.log", "r", "utf-8").read()).split(","))
+                self.dedup_set = set(re.sub(r"[{}\"\'\s]", "", codecs.open("./log/url_log.log", "r", "utf-8").read()).split(","))
             except FileNotFoundError:
                 pass
         if tortoise != {}:
@@ -341,14 +350,14 @@ if __name__ == "__main__":
     if choose == "1":
         spider.start_mission(input_name_or_id, input_list_url)
     elif choose == "2" or choose == "3":
-        input_next_PWL = bool(input("请输入列表页翻页方式,1点击，0拼接url:"))
-        input_NNP = bool(input("请输入详细页是否需要翻页,1是，0否:"))
+        input_next_PWL = bool(int(input("请输入列表页翻页方式,1点击，0拼接url:")))
+        input_NNP = bool(int(input("请输入详细页是否需要翻页,1是，0否:")))
         if input_NNP:
-            input_next_PWD = bool(input("请输入详细页翻页方式,1点击，0拼接url:"))
+            input_next_PWD = bool(int(input("请输入详细页翻页方式,1点击，0拼接url:")))
         if choose == "2":
             spider.start_mission(input_name_or_id, input_list_url, input_NNP, input_next_PWL, input_next_PWD)
         else:
-            tortoise["pure"] = bool(input("请输入是否需要(替换特定数据，以便分析),1是，0否:"))
-            tortoise["refine"] = bool(input("请输入是否需要内容(剔除特定数据),1是，0否:"))
-            tortoise["reconstruct"] = bool(input("请输入是否需改变数据格式,1是，0否:"))
+            tortoise["purify"] = bool(int(input("请输入是否需要(替换特定数据，以便分析),1是，0否:")))
+            tortoise["refine"] = bool(int(input("请输入是否需要内容(剔除特定数据),1是，0否:")))
+            tortoise["reconstruct"] = bool(int(input("请输入是否需改变数据格式,1是，0否:")))
             spider.start_mission(input_name_or_id, input_list_url, input_NNP, input_next_PWL, input_next_PWD, tortoise)

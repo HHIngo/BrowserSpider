@@ -24,8 +24,8 @@ def test(html, your_regex):
 if __name__ == "__main__":
     #your_regex = input("输入要测试的正则:")
     #url = input("输入要测试的url:")
-    your_regex = '<div class="threadlist_title pull_left j_th_tit ">.*?href="(.*?)"'
-    url = "https://tieba.baidu.com/f?fp=favo&fr=itb_favo&kw=%BA%A3%D4%F4%CD%F5"
+    your_regex = '(<img class="BDE_Smiley".*?>)'
+    url = "https://tieba.baidu.com/p/5629389674"
     command = input("直接打开输入1，浏览器打开输入2:")
     if command == "1":
         test(do_static_web(url), your_regex)
