@@ -1,0 +1,37 @@
+﻿{
+    "list_scroll_script": "",
+    "list_scroll_length":0,
+    "list_scroll_time":0,
+    "details_scroll_script": "document.documentElement.scrollTop=",
+    "details_scroll_length":2000,
+    "details_scroll_time":13,
+    "extract_way":"1",
+    "output_way":"1",
+    "limit":10,
+    "list_foot":"&pn=",
+    "list_size":50,
+    "list": {
+        "link_url": "<div class=\"threadlist_title pull_left j_th_tit \">.*?href=\"(.*?)\""
+    },
+    "url_unit":{
+        "url_head":"http://tieba.baidu.com",
+        "url_foot":"?pn=",
+        "next_num":1
+    },
+    "details": {
+        "out_name": "fr=pb\" target=\"_blank\">(.*?)</a>",
+        "out_content": "class=\"d_post_content j_d_post_content \">(.*?)</div>",
+        "inner_name":"<a data-field=\"{'un':'(.*?)'}\" target=\"_blank\" class=\"j_user_card lzl_p_p",
+        "inner_content":"<span class=\"lzl_content_main\">(.*?)</span>"
+    },
+    "click": {
+        "click_link_id": {
+            "href": "/p/",
+            "class": "j_th_tit"
+        },
+        "list_next": "#frs_list_pager .next",
+        "details_next": "#container .l_posts_num .pb_list_pager a",
+        "details_next_id":"下一页"
+    }
+    ,"_comment": ""
+}
