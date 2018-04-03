@@ -3,32 +3,27 @@ import json
 import re
 
 
-class Alchemy(object):
+def purify(load_dict, crystal):
+    for regex, replace in load_dict["purify"].items():
+        crystal = re.sub(regex, replace, crystal, re.S)
 
-    def __init__(self):
-        self.load_dict = {}
-        self.crystal = ""
 
-    def purify(self):
-        for regex, replace in self.load_dict["purify"].items():
-            self.crystal = re.sub(regex, replace, self.crystal, re.S)
+def refine(load_dict, crystal):
+    for regex in load_dict["refine"]:
+        crystal = re.sub(regex, "", crystal, re.S)
 
-    def refine(self):
-        for regex in self.load_dict["refine"]:
-            self.crystal = re.sub(regex, "", self.crystal, re.S)
 
-    def inferno(self, data, purify_choice=True, refine_choice=True):
-        alchemy = codecs.open("./alchemyPack/Alchemy.json", "r", "utf-8-sig")
-        self.load_dict = json.load(alchemy)
-        self.crystal = str(data)
-        if purify_choice:
-            self.purify()
-        if refine_choice:
-            self.refine()
-        return self.crystal
+def inferno(data, purify_choice=True, refine_choice=True):
+    alchemy = codecs.open("./alchemyPack/Alchemy.json", "r", "utf-8-sig")
+    load_dict = json.load(alchemy)
+    crystal = str(data)
+    if purify_choice:
+        purify(load_dict, crystal)
+    if refine_choice:
+        refine(load_dict, crystal)
+    return crystal
 
 if __name__ == "__main__":
-    a = Alchemy()
     info = ""
-    res = a.inferno(info)
+    res = inferno(info)
     print(res)
