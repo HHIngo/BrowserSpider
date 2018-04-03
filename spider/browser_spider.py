@@ -9,7 +9,7 @@ from selenium.common.exceptions import StaleElementReferenceException
 import codecs
 import datetime
 from hashlib import md5
-from spider.alchemy import Alchemy
+from spider.alchemy import inferno
 
 
 # 可选择列表页面的翻页方式，直接地址翻页或点击翻页.可选多次滚动，还是一次滚动,或者不用滚动。url_log可以加个网站参数提升性能
@@ -283,7 +283,7 @@ class Spider(object):
         purify = self.operate_params["purify"]
         refine = self.operate_params["refine"]
         if purify or refine:
-            result = Alchemy.inferno(data, purify, refine)
+            result = inferno(data, purify, refine)
             print(result)
         # reconstruct = self.operate_params["reconstruct"]
 
