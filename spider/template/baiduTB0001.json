@@ -7,6 +7,7 @@
     "details_scroll_time":13,
     "extract_way":"1",
     "output_way":"1",
+    "dedup_way":"1",
     "limit":10,
     "list_foot":"&pn=",
     "list_size":50,

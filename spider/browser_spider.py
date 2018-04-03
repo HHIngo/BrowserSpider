@@ -9,6 +9,8 @@ from selenium.common.exceptions import StaleElementReferenceException
 import codecs
 import datetime
 from hashlib import md5
+# from pybloom_live import ScalableBloomFilter
+import struct
 from spider.alchemy import inferno
 
 
@@ -51,6 +53,10 @@ class Spider(object):
         self.d_s_time = 0
         # 保存去重集合
         self.dedup_set = set({})
+        # 保存url消息摘要
+        self.url_md = ""
+        # 初始化bloomfilter,不用可注释掉
+        # self.bf = ScalableBloomFilter()
         # 提纯、精炼、转换数据格式等操作的选择
         self.operate_params = {}
 
@@ -87,6 +93,8 @@ class Spider(object):
         if not self.operate_params == {}:
             self.master_data(str(data))
         filename.write(content)
+        # 输出数据后再记录去重，以免失败后不再进入
+        self.write_url_log(self.url_md)
 
     # 选择提取内容方式
     def do_extract(self, list_or_info_dict, html):
@@ -114,34 +122,34 @@ class Spider(object):
 
     # 去重
     def deduplication(self, href_or_url):
+        md = md5()
+        md.update(href_or_url.encode("utf8"))
+        self.url_md = md.hexdigest()
+        # 使用集合去重,在集合内返回真，开始下一次循环
         if self.dedup_way == "1":
-            return self.deduplication_set(href_or_url)
+            return self.do_deduplication(self.dedup_set)
+        # 使用bloomfilter去重
         elif self.dedup_way == "2":
-            return self.use_bloomfilter()
+            return self.do_deduplication(self.bf)
 
-    # 使用集合去重,在集合内返回真，开始下一次循环
-    def deduplication_set(self, href_or_url):
-        if "http" in href_or_url:
-            md = md5()
-            md.update(href_or_url.encode("utf8"))
-            href_or_url = md.hexdigest()
-        if href_or_url in self.dedup_set:
+
+    def do_deduplication(self, kind):
+        if self.url_md in kind:
             return True
         else:
-            self.write_url_log(href_or_url)
             return False
 
-
-    # 使用bloomfilter去重
-    def use_bloomfilter(self):
-        pass
-
-    def write_url_log(self, href_or_url):
+    # 可改成一定数量输出和定时输出，以减少io次数，但目前频繁io不太影响性等,打开网页时睡得很足
+    def write_url_log(self, url_md):
         if self.dedup_way == "1":
-            self.dedup_set.add(href_or_url)
-            # 可改成一定数量输出和定时输出，以减少io次数，但目前频繁io不太影响性等,打开网页时睡得很足
-            filename = codecs.open("./log/url_log.log", "w", "utf-8")
-            filename.write(str(self.dedup_set))
+            self.dedup_set.add(url_md)
+            log_w = codecs.open("./log/url_log.log", "w", "utf-8")
+            log_w.write(str(self.dedup_set))
+        elif self.dedup_way == "2":
+            log_w = open("./log/bloomfilter.log", "wb")
+            self.bf.add(url_md)
+            self.bf.tofile(log_w)
+        log_w.close()
 
     # 首次进入列表页
     def first_blood(self, list_url):
@@ -167,8 +175,6 @@ class Spider(object):
                     return
         else:
             limit = self.load_dict["limit"]
-            html = self.browser.page_source
-            self.do_extract(self.load_dict["list"], html)
             self.address_open_list_page(list_url, limit)
 
     # 点击翻页，打开列表页面,详情页也为点击
@@ -196,25 +202,25 @@ class Spider(object):
         links.clear()
 
 
-    # 拼接翻页，打开列表页面,未测试
+    # 拼接翻页，打开列表页面,未测试完
     def address_open_list_page(self, list_url, limit=10):
         list_size = 0
+        html = self.browser.page_source
+        self.do_extract(self.load_dict["list"], html)
+        for link in self.result_dict["link_url"]:
+            if self.deduplication(link):
+                continue
+            full_link = self.load_dict["url_unit"]["url_head"] + link + self.load_dict["url_unit"]["url_foot"]
+            print(full_link)
+            # url需要拼接，考虑好不同网站的处理方式urlhead + linkurl + urlfoot ...如需要head和foot在模板中配置..
+            self.address_open_detail_page(full_link, limit)
+        list_size += self.load_dict["list_size"]
+        list_url = list_url + self.load_dict["list_foot"] + str(list_size)
         try:
             self.browser.get(list_url)
         except TimeoutException:
             # 会搞死么。。。
             self.address_open_list_page(list_url)
-        html = self.browser.page_source
-        self.do_extract(self.load_dict["list"], html)
-        if self.next_PWD:
-            self.click_open_detail_page()
-        else:
-            for link in self.result_dict["link_url"]:
-                full_link = self.load_dict["url_unit"]["url_head"] + link + self.load_dict["url_unit"]["url_foot"]
-                # url需要拼接，考虑好不同网站的处理方式urlhead + linkurl + urlfoot ...如需要head和foot在模板中配置..
-                self.address_open_detail_page(full_link, limit)
-        list_size += self.load_dict["list_size"]
-        list_url = list_url + self.load_dict["list_foot"] + str(list_size)
         self.address_open_list_page(list_url)
 
     # 点击打开详细页面
@@ -248,11 +254,14 @@ class Spider(object):
     # 翻页打开详细页面,未测试
     def address_open_detail_page(self, page_url, limit=10):
         windows = self.browser.window_handles
-        if len(windows) > 1:
-            self.browser.switch_to.window(windows[1])
         next_num = self.load_dict["url_unit"]["next_num"]
         toes = next_num
-        page_url = page_url + self.load_dict["url_unit"]["next_num"]
+        if self.NNP and self.next_PWD:
+            while toes < limit:
+                pass
+        if len(windows) > 1:
+            self.browser.switch_to.window(windows[1])
+        page_url = page_url + str(self.load_dict["url_unit"]["next_num"])
         page_url = page_url[:page_url.rfind(str(toes))]
         try:
             self.browser.get(page_url)
@@ -284,7 +293,7 @@ class Spider(object):
         refine = self.operate_params["refine"]
         if purify or refine:
             result = inferno(data, purify, refine)
-            print(result)
+            print("result" + result)
         # reconstruct = self.operate_params["reconstruct"]
 
 
@@ -330,24 +339,43 @@ class Spider(object):
         self.d_s_time = self.load_dict["details_scroll_time"]
         self.extract_way = self.load_dict["extract_way"]
         self.output_way = self.load_dict["output_way"]
-        if self.dedup_way == "1":
-            try:
-                self.dedup_set = set(re.sub(r"[{}\"\'\s]", "", codecs.open("./log/url_log.log", "r", "utf-8").read()).split(","))
-            except FileNotFoundError:
-                pass
+        self.init_dedup()
+        tortoise["purify"] = True
+        tortoise["refine"] = True
         if tortoise != {}:
             self.operate_params = tortoise
         self.first_blood(list_url)
 
+    # 初始化去重
+    def init_dedup(self):
+        self.dedup_way = self.load_dict["dedup_way"]
+        if self.dedup_way == "1":
+            try:
+                file = codecs.open("./log/url_log.log", "r", "utf-8")
+                self.dedup_set = set(re.sub(r"[{}\"\'\s]", "", file.read()).split(","))
+                file.close()
+            except FileNotFoundError:
+                pass
+        elif self.dedup_way == "2":
+            try:
+                file = open("./log/bloomfilter.log", "rb")
+                self.bf = self.bf.fromfile(file)
+            except struct.error:
+                pass
+            except FileNotFoundError:
+                pass
+
+# 三个重复为提升用户体验，以前输入一般，浏览器开了
 if __name__ == "__main__":
     choose = input("fast 1,slow 2,tortoise 3（默认点击翻页，详细页面只打开一页）:")
     input_name_or_id = input("请输入模板名字或id:")
     # list_url = input("列表页面地址:")
     input_list_url = "https://tieba.baidu.com/f?fp=favo&fr=itb_favo&kw=%BA%A3%D4%F4%CD%F5"
+    # input_list_url = "http://tieba.baidu.com/f?kw=%BC%C6%CB%E3%BB%FA&fr=ala0&tpl=5"
     input_next_PWD = True
     tortoise = {}
-    spider = Spider()
     if choose == "1":
+        spider = Spider()
         spider.start_mission(input_name_or_id, input_list_url)
     elif choose == "2" or choose == "3":
         input_next_PWL = bool(int(input("请输入列表页翻页方式,1点击，0拼接url:")))
@@ -355,9 +383,11 @@ if __name__ == "__main__":
         if input_NNP:
             input_next_PWD = bool(int(input("请输入详细页翻页方式,1点击，0拼接url:")))
         if choose == "2":
+            spider = Spider()
             spider.start_mission(input_name_or_id, input_list_url, input_NNP, input_next_PWL, input_next_PWD)
         else:
             tortoise["purify"] = bool(int(input("请输入是否需要(替换特定数据，以便分析),1是，0否:")))
             tortoise["refine"] = bool(int(input("请输入是否需要内容(剔除特定数据),1是，0否:")))
             tortoise["reconstruct"] = bool(int(input("请输入是否需改变数据格式,1是，0否:")))
+            spider = Spider()
             spider.start_mission(input_name_or_id, input_list_url, input_NNP, input_next_PWL, input_next_PWD, tortoise)

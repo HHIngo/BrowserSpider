@@ -1,6 +1,6 @@
 ﻿{
     "purify": {
-        "<img class=\"BDE_Smiley\".*?>": "滑稽"
+        "<img class=\"BDE_Smiley\".*?/>": "滑稽"
     },
-    "refine": ["<a href=.*?>","<br />","<div.*?>","<img.*?>","<.*?>"]
+    "refine": ["<a href=.*?/>","<br />","<div.*?>","<img.*?/>","<.*?>"," "]
 }
