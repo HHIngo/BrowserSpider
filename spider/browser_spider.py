@@ -3,19 +3,18 @@ from selenium import webdriver
 import json
 import os
 import time
-from selenium.common.exceptions import TimeoutException
-from selenium.common.exceptions import NoSuchElementException
-from selenium.common.exceptions import StaleElementReferenceException
+from selenium.common.exceptions import TimeoutException,NoSuchElementException,StaleElementReferenceException
 import codecs
 import datetime
 from hashlib import md5
-# from pybloom_live import ScalableBloomFilter
+from spider.doraemon import scalableBloomFilter,bs,get_xpath
 import struct
 from spider.alchemy import inferno
 
 
-# 可选择列表页面的翻页方式，直接地址翻页或点击翻页.可选多次滚动，还是一次滚动,或者不用滚动。url_log可以加个网站参数提升性能
-# 可选择不同方式提取，和不同方式输出.提供数据提纯、精炼、转换数据格式等操作，由于需要单独配置，最好调用外部.
+# 可选择列表页面的翻页方式，直接地址翻页或点击翻页.可选多次滚动，还是一次滚动,或者不用滚动。
+# 可选择不同方式提取，和不同方式输出.提供数据提纯、精炼、转换数据格式等操作，由于需要单独配置，最好调用外部。
+# 将非必要导入包安置于doraemon.py中，方便测试。三级以上最好外部调用，都用浏览器效率太低。
 class Spider(object):
     # 初始化有点多，但安全
     def __init__(self):
@@ -51,12 +50,12 @@ class Spider(object):
         self.details_scroll_length = 0
         # 保存详细滚动次数
         self.d_s_time = 0
-        # 保存去重集合
-        self.dedup_set = set({})
         # 保存url消息摘要
         self.url_md = ""
-        # 初始化bloomfilter,不用可注释掉
-        # self.bf = ScalableBloomFilter()
+        # 保存去重集合
+        self.dedup_set = set({})
+        # 初始化bloomfilter
+        self.bf = scalableBloomFilter()
         # 提纯、精炼、转换数据格式等操作的选择
         self.operate_params = {}
 
@@ -89,10 +88,16 @@ class Spider(object):
             filename = codecs.open("./result/"+str(datetime.datetime.now().day)+".json", "a", "utf-8")
         else:
             filename = codecs.open("./result/"+output_name, "a", "utf-8")
-        content = json.dumps(data, ensure_ascii=False) + "\n"
+        for key, value in data.items():
+            if len(value) == 0:
+                data[key] = ""
+            if len(value) == 1:
+                data[key] = data[key][0]
         if not self.operate_params == {}:
-            self.master_data(str(data))
-        filename.write(content)
+            content = self.master_data(data)
+        else:
+            content = json.dumps(data, ensure_ascii=False)
+        filename.write(content + "\n")
         # 输出数据后再记录去重，以免失败后不再进入
         self.write_url_log(self.url_md)
 
@@ -106,19 +111,23 @@ class Spider(object):
             self.use_xpath()
 
     # 使用正则,返回所续字段和内容对应字典。
-    def use_re(self, list_or_info_dict, html):
-        for name, regex in list_or_info_dict.items():
+    def use_re(self, list_or_details_dict, html):
+        for name, regex in list_or_details_dict.items():
             pattern = re.compile(regex, re.S)
-            content = pattern.findall(html)
-            self.result_dict[name] = content
+            self.result_dict[name] = pattern.findall(html)
 
-    # 使用BeautifulSoup
-    def use_soup(self):
-        pass
+    # 使用BeautifulSoup,模板样式"details":{"taget":{"tagName":{"class" :"dy-num fr"}}},未测试.
+    def use_soup(self, list_or_details_dict, html):
+        soup = bs(html)
+        for name, value in list_or_details_dict.items():
+            if type(value) == dict:
+                self.result_dict[name] = soup.find_all(list(value.keys())[0],list(value.values())[0])
 
-    # 使用xpath
-    def use_xpath(self):
-        pass
+    # 使用xpath,未测试
+    def use_xpath(self, list_or_details_dict, html):
+        selector = get_xpath(html)
+        for name, path in list_or_details_dict.items():
+            self.result_dict[name] = selector.xpath(path).text
 
     # 去重
     def deduplication(self, href_or_url):
@@ -132,7 +141,6 @@ class Spider(object):
         elif self.dedup_way == "2":
             return self.do_deduplication(self.bf)
 
-
     def do_deduplication(self, kind):
         if self.url_md in kind:
             return True
@@ -143,7 +151,7 @@ class Spider(object):
     def write_url_log(self, url_md):
         if self.dedup_way == "1":
             self.dedup_set.add(url_md)
-            log_w = codecs.open("./log/url_log.log", "w", "utf-8")
+            log_w = codecs.open("./log/"+self.load_dict["website_id"]+"url_log.log", "w", "utf-8")
             log_w.write(str(self.dedup_set))
         elif self.dedup_way == "2":
             log_w = open("./log/bloomfilter.log", "wb")
@@ -191,16 +199,15 @@ class Spider(object):
                         continue
                     link.click()
                     self.click_open_detail_page()
-            except TypeError as e:
+            except TypeError:
                 continue
-            except StaleElementReferenceException as e:
+            except StaleElementReferenceException:
                 windows = self.browser.window_handles
                 if len(windows) > 1:
                     self.browser.close()
                 self.browser.switch_to.window(windows[0])
                 pass
         links.clear()
-
 
     # 拼接翻页，打开列表页面,未测试完
     def address_open_list_page(self, list_url, limit=10):
@@ -214,6 +221,7 @@ class Spider(object):
             print(full_link)
             # url需要拼接，考虑好不同网站的处理方式urlhead + linkurl + urlfoot ...如需要head和foot在模板中配置..
             self.address_open_detail_page(full_link, limit)
+        self.result_dict.pop("link_url")
         list_size += self.load_dict["list_size"]
         list_url = list_url + self.load_dict["list_foot"] + str(list_size)
         try:
@@ -284,18 +292,15 @@ class Spider(object):
         # print(html)
         self.do_extract(self.load_dict["details"], html)
         self.result_dict["url"] = self.browser.current_url
-        print(self.result_dict)
         self.output_data(self.result_dict)
 
     # 提纯、精炼、转换数据格式等操作,待开发，提纯：如将某一标签(数据)替换换中文或数字等
     def master_data(self, data):
         purify = self.operate_params["purify"]
         refine = self.operate_params["refine"]
+        reconstruct = self.operate_params["reconstruct"]
         if purify or refine:
-            result = inferno(data, purify, refine)
-            print("result" + result)
-        # reconstruct = self.operate_params["reconstruct"]
-
+            return inferno(data, purify, refine, reconstruct)
 
     # 关闭当前窗口或返回
     def close_or_back(self, windows):
@@ -340,8 +345,6 @@ class Spider(object):
         self.extract_way = self.load_dict["extract_way"]
         self.output_way = self.load_dict["output_way"]
         self.init_dedup()
-        tortoise["purify"] = True
-        tortoise["refine"] = True
         if tortoise != {}:
             self.operate_params = tortoise
         self.first_blood(list_url)
@@ -351,7 +354,7 @@ class Spider(object):
         self.dedup_way = self.load_dict["dedup_way"]
         if self.dedup_way == "1":
             try:
-                file = codecs.open("./log/url_log.log", "r", "utf-8")
+                file = codecs.open("./log/"+self.load_dict["website_id"]+"url_log.log", "r", "utf-8")
                 self.dedup_set = set(re.sub(r"[{}\"\'\s]", "", file.read()).split(","))
                 file.close()
             except FileNotFoundError:
@@ -371,7 +374,6 @@ if __name__ == "__main__":
     input_name_or_id = input("请输入模板名字或id:")
     # list_url = input("列表页面地址:")
     input_list_url = "https://tieba.baidu.com/f?fp=favo&fr=itb_favo&kw=%BA%A3%D4%F4%CD%F5"
-    # input_list_url = "http://tieba.baidu.com/f?kw=%BC%C6%CB%E3%BB%FA&fr=ala0&tpl=5"
     input_next_PWD = True
     tortoise = {}
     if choose == "1":

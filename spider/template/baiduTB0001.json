@@ -1,10 +1,11 @@
 ﻿{
+    "website_id":"0001",
     "list_scroll_script": "",
     "list_scroll_length":0,
     "list_scroll_time":0,
     "details_scroll_script": "document.documentElement.scrollTop=",
     "details_scroll_length":2000,
-    "details_scroll_time":13,
+    "details_scroll_time":15,
     "extract_way":"1",
     "output_way":"1",
     "dedup_way":"1",
