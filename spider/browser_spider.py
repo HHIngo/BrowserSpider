@@ -368,7 +368,7 @@ class Spider(object):
             except FileNotFoundError:
                 pass
 
-# 三个重复为提升用户体验，以前输入一般，浏览器开了
+# 三个重复为提升用户体验，以前输入一半，浏览器开了（初始化了），体验差
 if __name__ == "__main__":
     choose = input("fast 1,slow 2,tortoise 3（默认点击翻页，详细页面只打开一页）:")
     input_name_or_id = input("请输入模板名字或id:")
