@@ -7,7 +7,7 @@ from selenium.common.exceptions import TimeoutException,NoSuchElementException,S
 import codecs
 import datetime
 from hashlib import md5
-from spider.doraemon import scalableBloomFilter,bs,get_xpath
+from spider.doraemon import scalableBloomFilter, bs, get_xpath
 import struct
 from spider.alchemy import inferno
 
